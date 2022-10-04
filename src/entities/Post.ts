@@ -4,7 +4,7 @@ import { Field, Int, ObjectType } from "type-graphql";
 @ObjectType() //convert orm to graphql object
 @Entity()
 export class Post {
-  @Field(() => Int) //needed this field
+  @Field(() => Int) // you can specify type manually as a callback
   @PrimaryKey()
   id!: number;
 
@@ -16,6 +16,7 @@ export class Post {
   @Property({type: "date", onUpdate: () => new Date()})
   updatedAt = new Date();
 
+  // Comment field to make the schema not expose
   @Field(() => String)
   @Property({type: "text"})
   title!: string;
