@@ -1,6 +1,9 @@
 import { Entity, PrimaryKey, Property } from "@mikro-orm/core";
 import { Field, Int, ObjectType } from "type-graphql";
 
+//what is migration 1:13:26
+//compare db to this Post class then create a sql to match the db
+
 @ObjectType() //convert orm to graphql object
 @Entity()
 export class Post {
