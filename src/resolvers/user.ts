@@ -12,6 +12,12 @@ import {
 } from "type-graphql";
 import argon2 from "argon2";
 
+declare module 'express-session' {
+  export interface SessionData {
+    userId: number;
+  }
+}
+
 @InputType()
 class UsernamePasswordInput {
   @Field()
@@ -98,7 +104,7 @@ export class UserResolver {
   @Mutation(() => UserResponse)
   async login(
     @Arg("options") options: UsernamePasswordInput,
-    @Ctx() { em }: MyConText
+    @Ctx() { em, req }: MyConText
   ): Promise<UserResponse> {
     const user = await em.findOne(User, { username: options.username });
     if (!user) {
@@ -126,6 +132,8 @@ export class UserResolver {
       };
     }
 
+    req.session.userId = user.id;
+    console.log(req.session);
     return { user };
   }
 }

@@ -14,6 +14,28 @@ const main = async () => {
   await orm.getMigrator().up();
 
   const app = express();
+  const session = require("express-session");
+  let RedisStore = require("connect-redis")(session);
+  const { createClient } = require("redis");
+  let redisClient = createClient({ legacyMode: true });
+  redisClient.connect().catch(console.error);
+  app.set('trust proxy', true);
+  app.use(
+    session({
+      name: "qid",
+      store: new RedisStore({ client: redisClient as any, disableTouch: true }),
+      secret: "keyboard",
+      saveUninitialized: false,
+      resave: true,
+      cookie: {
+        path: "/",
+        sameSite: "none", // csrf
+        // secure: __prod__, //cookie only works in https
+        secure: true
+      },
+    })
+  );
+
   app.get("/", (_, res) => {
     res.send("hello");
   });
@@ -23,13 +45,16 @@ const main = async () => {
       resolvers: [HelloResolver, PostResolver, UserResolver],
       validate: false,
     }),
-    context: () => ({
+    //accessing cookie resolver by passing req, res
+    context: ({ req, res }) => ({
       em: orm.em,
+      req,
+      res,
     }),
   });
 
   await apolloServer.start();
-  apolloServer.applyMiddleware({ app });
+  apolloServer.applyMiddleware({ app, cors: {credentials: true, origin: "https://studio.apollographql.com"} });
 
   app.listen(3000, () => {
     console.log("listening on port 3000...");
