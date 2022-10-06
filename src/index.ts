@@ -31,7 +31,8 @@ const main = async () => {
         path: "/",
         sameSite: "none", // csrf
         // secure: __prod__, //cookie only works in https
-        secure: true
+        secure: true,
+        expires: 60 * 1000
       },
     })
   );
