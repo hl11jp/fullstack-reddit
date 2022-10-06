@@ -50,11 +50,24 @@ export class UserResolver {
     return em.find(User, {});
   }
 
+  @Query(() => User, {nullable: true})
+  async me(
+    @Ctx() {em, req}: MyConText
+  ) {
+    //you are not logged in
+    if (!req.session.userId) {
+      return null;
+    }
+
+    const user = await em.findOne(User, {id: req.session.userId});
+    return user;
+  }
+
   @Mutation(() => UserResponse)
   async register(
     @Arg("options") options: UsernamePasswordInput,
     // @Arg("options", () => UsernamePasswordInput) options: UsernamePasswordInput, if type-graphql can't inferred the type
-    @Ctx() { em }: MyConText
+    @Ctx() { em,req }: MyConText
   ): Promise<UserResponse> {
     if (options.username.length <= 2) {
       return {
@@ -97,6 +110,9 @@ export class UserResolver {
         }
       }
     }
+
+    //log the user after register
+    req.session.userId = user.id;
     
     return { user };
   }
@@ -132,6 +148,7 @@ export class UserResolver {
       };
     }
 
+    //2:03:06 Sessions Explained
     req.session.userId = user.id;
     console.log(req.session);
     return { user };
