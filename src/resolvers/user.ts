@@ -80,7 +80,7 @@ export class UserResolver {
       };
     }
 
-    if (options.password.length <= 8) {
+    if (options.password.length <= 3) {
       return {
         errors: [
           {
