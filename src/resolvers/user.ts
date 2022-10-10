@@ -11,6 +11,7 @@ import {
   Resolver,
 } from "type-graphql";
 import argon2 from "argon2";
+// import { COOKIE_NAME } from "src/constants";
 // import { EntityManager } from "@mikro-orm/postgresql";
 
 declare module "express-session" {
@@ -171,6 +172,7 @@ export class UserResolver {
           resolve(false);
           return;
         }
+        // res.clearCookie(COOKIE_NAME, {path: '/', sameSite: 'none', secure:true}); gave error and I don't know why
         res.clearCookie('qid', {path: '/', sameSite: 'none', secure:true});
         resolve(true);
       })
