@@ -1,5 +1,5 @@
 import { MikroORM } from "@mikro-orm/core";
-import { __prod__ } from "./constants";
+import { COOKIE_NAME, __prod__ } from "./constants";
 // import { Post } from "./entities/Post";
 import mikroOrmConfig from "./mikro-orm.config";
 import express from "express";
@@ -22,7 +22,7 @@ const main = async () => {
   app.set('trust proxy', true);
   app.use(
     session({
-      name: "qid",
+      name: COOKIE_NAME,
       store: new RedisStore({ client: redisClient as any, disableTouch: true }),
       secret: "keyboard",
       saveUninitialized: false,
