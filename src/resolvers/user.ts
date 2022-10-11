@@ -198,13 +198,14 @@ export class UserResolver {
         errors: [
           {
             field: "newPassword", //name of our field on the frontend
-            message: "length must be greater than 8",
+            message: "length must be greater than 3",
           },
         ],
       };
     }
 
-    const userId = await redisClient.get(FORGET_PASSWORD_PREFIX + token);
+    const key = FORGET_PASSWORD_PREFIX + token;
+    const userId = await redisClient.get(key);
     if (!userId) {
       return {
         errors: [
@@ -229,6 +230,9 @@ export class UserResolver {
     }
     user.password = await argon2.hash(newPassword);
     em.persistAndFlush(user);
+
+    //clear the token
+    await redisClient.del(key);
 
     //login user after change password
     req.session.userId = user.id;
