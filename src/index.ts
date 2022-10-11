@@ -8,6 +8,7 @@ import { buildSchema } from "type-graphql";
 import { HelloResolver } from "./resolvers/hello";
 import { PostResolver } from "./resolvers/post";
 import { UserResolver } from "./resolvers/user";
+import Redis from "ioredis";
 
 const main = async () => {
   const orm = await MikroORM.init(mikroOrmConfig);
@@ -16,9 +17,9 @@ const main = async () => {
   const app = express();
   const session = require("express-session");
   let RedisStore = require("connect-redis")(session);
-  const { createClient } = require("redis");
-  let redisClient = createClient({ legacyMode: true });
-  redisClient.connect().catch(console.error);
+  // const { createClient } = require("redis");
+  let redisClient = new Redis();
+  // redisClient.connect().catch(console.error);
   app.set('trust proxy', true);
   app.use(
     session({
@@ -51,6 +52,7 @@ const main = async () => {
       em: orm.em,
       req,
       res,
+      redisClient
     }),
   });
 

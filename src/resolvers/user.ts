@@ -12,8 +12,11 @@ import {
 import argon2 from "argon2";
 import { UsernamePasswordInput } from "./UsernamePasswordInput";
 import { validateRegister } from "../utils/validateRegister";
+import { sendEmail } from "../utils/sendEmail";
 // import { COOKIE_NAME } from "src/constants";
 // import { EntityManager } from "@mikro-orm/postgresql";
+import {v4} from "uuid";
+import { FORGET_PASSWORD_PREFIX } from "../constants";
 
 declare module "express-session" {
   export interface SessionData {
@@ -158,10 +161,19 @@ export class UserResolver {
 
   @Mutation(() => Boolean)
   async forgotPassword(
-    // @Arg('email') email: string,
-    // @Ctx() {em}: MyConText
+    @Arg('email') email: string,
+    @Ctx() {em, redisClient}: MyConText
   ) {
-    // const user = await em.findOne(User, {email});
+    const user = await em.findOne(User, {email});
+    if (!user) {
+      //the email is not in db
+      return true;
+    }
+
+    const token = v4();
+    await redisClient.set(FORGET_PASSWORD_PREFIX + token, user.id, 'EX', 1000 * 60 * 60 * 24 * 3); // 3 days
+
+    await sendEmail(email, `<a href="http:localhost:3000/change-password/${token}"></a>`);
     return true;
   }
 }
