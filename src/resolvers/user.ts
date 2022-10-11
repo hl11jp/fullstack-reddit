@@ -15,7 +15,7 @@ import { validateRegister } from "../utils/validateRegister";
 import { sendEmail } from "../utils/sendEmail";
 // import { COOKIE_NAME } from "src/constants";
 // import { EntityManager } from "@mikro-orm/postgresql";
-import {v4} from "uuid";
+import { v4 } from "uuid";
 import { FORGET_PASSWORD_PREFIX } from "../constants";
 
 declare module "express-session" {
@@ -66,7 +66,7 @@ export class UserResolver {
     @Ctx() { em, req }: MyConText
   ): Promise<UserResponse> {
     const errors = validateRegister(options);
-    if (errors) return {errors}; 
+    if (errors) return { errors };
 
     const hashedPassword = await argon2.hash(options.password);
     const user = em.create(User, {
@@ -107,10 +107,15 @@ export class UserResolver {
   @Mutation(() => UserResponse)
   async login(
     @Arg("usernameOrEmail") usernameOrEmail: string,
-    @Arg('password') password: string,
+    @Arg("password") password: string,
     @Ctx() { em, req }: MyConText
   ): Promise<UserResponse> {
-    const user = await em.findOne(User, usernameOrEmail.includes('@') ? {email: usernameOrEmail} : {username: usernameOrEmail});
+    const user = await em.findOne(
+      User,
+      usernameOrEmail.includes("@")
+        ? { email: usernameOrEmail }
+        : { username: usernameOrEmail }
+    );
     if (!user) {
       return {
         errors: [
@@ -122,10 +127,7 @@ export class UserResolver {
         ],
       };
     }
-    const isValidPassword = await argon2.verify(
-      user.password,
-      password
-    );
+    const isValidPassword = await argon2.verify(user.password, password);
     if (!isValidPassword) {
       return {
         errors: [
@@ -153,7 +155,7 @@ export class UserResolver {
           return;
         }
         // res.clearCookie(COOKIE_NAME, {path: '/', sameSite: 'none', secure:true}); gave error and I don't know why
-        res.clearCookie('qid', {path: '/', sameSite: 'none', secure:true});
+        res.clearCookie("qid", { path: "/", sameSite: "none", secure: true });
         resolve(true);
       })
     );
@@ -161,19 +163,76 @@ export class UserResolver {
 
   @Mutation(() => Boolean)
   async forgotPassword(
-    @Arg('email') email: string,
-    @Ctx() {em, redisClient}: MyConText
+    @Arg("email") email: string,
+    @Ctx() { em, redisClient }: MyConText
   ) {
-    const user = await em.findOne(User, {email});
+    const user = await em.findOne(User, { email });
     if (!user) {
       //the email is not in db
       return true;
     }
 
     const token = v4();
-    await redisClient.set(FORGET_PASSWORD_PREFIX + token, user.id, 'EX', 1000 * 60 * 60 * 24 * 3); // 3 days
+    await redisClient.set(
+      FORGET_PASSWORD_PREFIX + token,
+      user.id,
+      "EX",
+      1000 * 60 * 60 * 24 * 3
+    ); // 3 days
 
-    await sendEmail(email, `<a href="http:localhost:3000/change-password/${token}"></a>`);
+    await sendEmail(
+      email,
+      `<a href="http:localhost:3001/change-password/${token}"></a>`
+    );
     return true;
+  }
+
+  @Mutation(() => UserResponse)
+  async changePassword(
+    @Arg("token") token: string,
+    @Arg("newPassword") newPassword: string,
+    @Ctx() { em, redisClient, req }: MyConText
+  ): Promise<UserResponse> {
+    if (newPassword.length <= 3) {
+      return {
+        errors: [
+          {
+            field: "newPassword", //name of our field on the frontend
+            message: "length must be greater than 8",
+          },
+        ],
+      };
+    }
+
+    const userId = await redisClient.get(FORGET_PASSWORD_PREFIX + token);
+    if (!userId) {
+      return {
+        errors: [
+          {
+            field: "token",
+            message: "token expired",
+          },
+        ],
+      };
+    }
+
+    const user = await em.findOne(User, { id: parseInt(userId) });
+    if (!user) {
+      return {
+        errors: [
+          {
+            field: "token",
+            message: "user no longer exists",
+          },
+        ],
+      };
+    }
+    user.password = await argon2.hash(newPassword);
+    em.persistAndFlush(user);
+
+    //login user after change password
+    req.session.userId = user.id;
+
+    return { user };
   }
 }
