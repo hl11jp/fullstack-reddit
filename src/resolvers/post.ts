@@ -1,6 +1,5 @@
 import { Post } from "../entities/Post";
-import { MyConText } from "src/types";
-import { Arg, Ctx, Int, Mutation, Query, Resolver } from "type-graphql";
+import { Arg, Mutation, Query, Resolver } from "type-graphql";
 
 // const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 // await sleep(5);
@@ -8,57 +7,40 @@ import { Arg, Ctx, Int, Mutation, Query, Resolver } from "type-graphql";
 @Resolver()
 export class PostResolver {
   @Query(() => [Post])
-  async posts(@Ctx() ctx: MyConText): Promise<Post[]> {
+  async posts(): Promise<Post[]> {
     // await sleep(10);
-    return ctx.em.find(Post, {});
+    return Post.find();
   }
 
   @Query(() => Post, { nullable: true })
-  post(
-    @Arg("identifier", () => Int) id: number,
-    @Ctx() ctx: MyConText
-  ): Promise<Post | null> {
-    return ctx.em.findOne(Post, { id });
+  post(@Arg("id") id: number): Promise<Post | null> {
+    return Post.findOneBy({ id });
   }
 
   @Mutation(() => Post)
-  async createPost(
-    @Arg("title", () => String) title: string,
-    @Ctx() ctx: MyConText
-  ): Promise<Post> {
-    const post = ctx.em.create(Post, {
-      title: title,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-    await ctx.em.persistAndFlush(post);
-    return post;
+  async createPost(@Arg("title", () => String) title: string): Promise<Post> {
+    return Post.create({ title }).save();
   }
 
   @Mutation(() => Post, { nullable: true })
   async updatePost(
     @Arg("identifier") id: number,
-    @Arg("title") title: string,
-    @Ctx() { em }: MyConText
+    @Arg("title") title: string
   ): Promise<Post | null> {
-    const post = await em.findOne(Post, { id });
+    const post = await Post.findOneBy({ id });
     if (!post) {
       return null;
     }
     if (typeof title !== "undefined") {
-      post.title = title;
-      await em.persistAndFlush(post);
+      await Post.update({ id }, { title });
     }
     return post;
   }
 
   @Mutation(() => Boolean, { nullable: true })
-  async deletePost(
-    @Arg("identifer") id: number,
-    @Ctx() { em }: MyConText
-  ): Promise<Boolean> {
+  async deletePost(@Arg("identifier") id: number): Promise<Boolean> {
     try {
-      await em.nativeDelete(Post, { id });
+      await Post.delete(id);
     } catch {
       return false;
     }

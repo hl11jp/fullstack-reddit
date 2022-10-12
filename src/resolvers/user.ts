@@ -1,4 +1,4 @@
-import { User } from "..//entities/User";
+import argon2 from "argon2";
 import { MyConText } from "src/types";
 import {
   Arg,
@@ -9,14 +9,15 @@ import {
   Query,
   Resolver,
 } from "type-graphql";
-import argon2 from "argon2";
-import { UsernamePasswordInput } from "./UsernamePasswordInput";
-import { validateRegister } from "../utils/validateRegister";
 import { sendEmail } from "../utils/sendEmail";
-// import { COOKIE_NAME } from "src/constants";
+import { validateRegister } from "../utils/validateRegister";
+import { UsernamePasswordInput } from "./UsernamePasswordInput";
+import { COOKIE_NAME } from "../constants";
 // import { EntityManager } from "@mikro-orm/postgresql";
+import { getConnection } from "typeorm";
 import { v4 } from "uuid";
 import { FORGET_PASSWORD_PREFIX } from "../constants";
+import { User } from "../entities/User";
 
 declare module "express-session" {
   export interface SessionData {
@@ -44,39 +45,42 @@ class UserResponse {
 @Resolver()
 export class UserResolver {
   @Query(() => [User])
-  users(@Ctx() { em }: MyConText): Promise<User[]> {
-    return em.find(User, {});
+  users(): Promise<User[]> {
+    return User.find();
   }
 
   @Query(() => User, { nullable: true })
-  async me(@Ctx() { em, req }: MyConText) {
+  me(@Ctx() { req }: MyConText) {
     //you are not logged in
     if (!req.session.userId) {
       return null;
     }
 
-    const user = await em.findOne(User, { id: req.session.userId });
-    return user;
+    return User.findOne({ where: { id: req.session.userId } });
   }
 
   @Mutation(() => UserResponse)
   async register(
     @Arg("options") options: UsernamePasswordInput,
     // @Arg("options", () => UsernamePasswordInput) options: UsernamePasswordInput, if type-graphql can't inferred the type
-    @Ctx() { em, req }: MyConText
+    @Ctx() { req }: MyConText
   ): Promise<UserResponse> {
     const errors = validateRegister(options);
     if (errors) return { errors };
 
+    let user;
     const hashedPassword = await argon2.hash(options.password);
-    const user = em.create(User, {
-      username: options.username,
-      password: hashedPassword,
-      email: options.email,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    // const user = em.create(User, {
+    //   username: options.username,
+    //   password: hashedPassword,
+    //   email: options.email,
+    //   createdAt: new Date(),
+    //   updatedAt: new Date(),
+    // });
     try {
+      /**
+       * This was created using mikro-orm
+       */
       //if persistAndFlush does not work, do this instead!
       // const [user] = await (em as EntityManager).createQueryBuilder(User).getKnexQuery().insert({
       //   username: options.username,
@@ -84,7 +88,24 @@ export class UserResolver {
       //   created_at: new Date(),
       //   updated_at: new Date(),
       // }).returning("*");
-      await em.persistAndFlush(user); //if this is fail, the user's id won't be set so the user is null
+
+      /**
+       * This was created using typeorm
+       */
+      // user = await User.create({username: options.username, password: hashedPassword, email: options.email}).save();
+      const result = await getConnection()
+        .createQueryBuilder()
+        .insert()
+        .into(User)
+        .values({
+          username: options.username,
+          email: options.email,
+          password: hashedPassword,
+        })
+        .returning("*")
+        .execute();
+      user = result.raw[0];
+      // await em.persistAndFlush(user); //if this is fail, the user's id won't be set so the user is null
     } catch (err) {
       if (err.code === "23505") {
         return {
@@ -108,14 +129,13 @@ export class UserResolver {
   async login(
     @Arg("usernameOrEmail") usernameOrEmail: string,
     @Arg("password") password: string,
-    @Ctx() { em, req }: MyConText
+    @Ctx() { req }: MyConText
   ): Promise<UserResponse> {
-    const user = await em.findOne(
-      User,
-      usernameOrEmail.includes("@")
+    const user = await User.findOne({
+      where: usernameOrEmail.includes("@")
         ? { email: usernameOrEmail }
-        : { username: usernameOrEmail }
-    );
+        : { username: usernameOrEmail },
+    });
     if (!user) {
       return {
         errors: [
@@ -155,7 +175,7 @@ export class UserResolver {
           return;
         }
         // res.clearCookie(COOKIE_NAME, {path: '/', sameSite: 'none', secure:true}); gave error and I don't know why
-        res.clearCookie("qid", { path: "/", sameSite: "none", secure: true });
+        res.clearCookie(COOKIE_NAME, { path: "/", sameSite: "none", secure: true });
         resolve(true);
       })
     );
@@ -164,9 +184,9 @@ export class UserResolver {
   @Mutation(() => Boolean)
   async forgotPassword(
     @Arg("email") email: string,
-    @Ctx() { em, redisClient }: MyConText
+    @Ctx() { redisClient }: MyConText
   ) {
-    const user = await em.findOne(User, { email });
+    const user = await User.findOne({ where: { email } });
     if (!user) {
       //the email is not in db
       return true;
@@ -191,7 +211,7 @@ export class UserResolver {
   async changePassword(
     @Arg("token") token: string,
     @Arg("newPassword") newPassword: string,
-    @Ctx() { em, redisClient, req }: MyConText
+    @Ctx() { redisClient, req }: MyConText
   ): Promise<UserResponse> {
     if (newPassword.length <= 3) {
       return {
@@ -217,7 +237,7 @@ export class UserResolver {
       };
     }
 
-    const user = await em.findOne(User, { id: parseInt(userId) });
+    const user = await User.findOne({ where: { id: parseInt(userId) } });
     if (!user) {
       return {
         errors: [
@@ -228,8 +248,13 @@ export class UserResolver {
         ],
       };
     }
-    user.password = await argon2.hash(newPassword);
-    em.persistAndFlush(user);
+
+    await User.update(
+      { id: parseInt(userId) },
+      {
+        password: await argon2.hash(newPassword),
+      }
+    );
 
     //clear the token
     await redisClient.del(key);
