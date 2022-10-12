@@ -22,6 +22,7 @@ const main = async () => {
     entities: [Post, User]
   })
 
+
   const app = express();
   const session = require("express-session");
   let RedisStore = require("connect-redis")(session);
