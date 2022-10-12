@@ -7,8 +7,10 @@ import {
   Mutation,
   Query,
   Resolver,
+  UseMiddleware,
 } from "type-graphql";
 import { MyConText } from "@/types";
+import { isAuth } from "../middleware/isAuth";
 
 // const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 // await sleep(5);
@@ -35,13 +37,11 @@ export class PostResolver {
   }
 
   @Mutation(() => Post)
+  @UseMiddleware(isAuth)
   async createPost(
     @Arg("input") input: PostInput,
     @Ctx() { req }: MyConText
   ): Promise<Post> {
-    if (!req.session.userId) {
-      throw new Error("not authenticated");
-    }
     return Post.create({ ...input, creatorId: req.session.userId }).save();
   }
 
