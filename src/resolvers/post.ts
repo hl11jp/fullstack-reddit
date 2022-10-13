@@ -3,11 +3,13 @@ import {
   Arg,
   Ctx,
   Field,
+  FieldResolver,
   InputType,
   Int,
   Mutation,
   Query,
   Resolver,
+  Root,
   UseMiddleware,
 } from "type-graphql";
 import { MyConText } from "@/types";
@@ -25,7 +27,8 @@ class PostInput {
   text: string;
 }
 
-@Resolver()
+//need to past `Post` into the @Resolver when use @FieldResolver
+@Resolver(Post)
 export class PostResolver {
   @Query(() => [Post])
   async posts(
@@ -83,5 +86,12 @@ export class PostResolver {
       return false;
     }
     return true;
+  }
+
+  @FieldResolver(() => String)
+  textSnippet(
+    @Root() root: Post
+  ) {
+    return root.text.slice(0, 50);
   }
 }

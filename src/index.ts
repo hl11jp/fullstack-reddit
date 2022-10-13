@@ -10,7 +10,9 @@ import Redis from "ioredis";
 import {createConnection} from "typeorm";
 import { Post } from "./entities/Post";
 import { User } from "./entities/User";
+import path from "path";
 
+//rerun
 const main = async () => {
   const conn = await createConnection({
     type: 'postgres',
@@ -19,8 +21,11 @@ const main = async () => {
     password: 'postgres',
     logging: true,
     synchronize: true, //auto create table so don't need to run migration,
+    migrations: [path.join(__dirname, './migrations/*')],
     entities: [Post, User]
   })
+
+  await conn.runMigrations();
 
 
   const app = express();
