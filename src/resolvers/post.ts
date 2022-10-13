@@ -4,6 +4,7 @@ import {
   Ctx,
   Field,
   InputType,
+  Int,
   Mutation,
   Query,
   Resolver,
@@ -11,6 +12,7 @@ import {
 } from "type-graphql";
 import { MyConText } from "@/types";
 import { isAuth } from "../middleware/isAuth";
+import { getConnection } from "typeorm";
 
 // const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 // await sleep(5);
@@ -26,9 +28,22 @@ class PostInput {
 @Resolver()
 export class PostResolver {
   @Query(() => [Post])
-  async posts(): Promise<Post[]> {
+  async posts(
+    @Arg("limit", () => Int) limit: number,
+    @Arg("cursor", () => String, { nullable: true }) cursor: string | null
+  ): Promise<Post[]> {
+    const realLimit = Math.min(50, limit);
     // await sleep(10);
-    return Post.find();
+    let pb = getConnection()
+      .getRepository(Post)
+      .createQueryBuilder("p")
+      .orderBy('"createdAt"', "DESC")
+      .take(realLimit)
+    if (cursor) {
+      //cursor is a position and based on that position how many post we want to see using the `limit` variable
+      pb.where('"createdAt" < :cursor', {cursor: new Date(parseInt(cursor))})
+    }
+    return pb.getMany();
   }
 
   @Query(() => Post, { nullable: true })
