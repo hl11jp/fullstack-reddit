@@ -4,10 +4,12 @@ import {
   Arg,
   Ctx,
   Field,
+  FieldResolver,
   Mutation,
   ObjectType,
   Query,
   Resolver,
+  Root,
 } from "type-graphql";
 import { sendEmail } from "../utils/sendEmail";
 import { validateRegister } from "../utils/validateRegister";
@@ -42,8 +44,19 @@ class UserResponse {
   user?: User;
 }
 
-@Resolver()
+@Resolver(User)
 export class UserResolver {
+
+  @FieldResolver(() => String)
+  email(@Root() user: User, @Ctx() {req}: MyConText) {
+    // this is the current user and it is okay to show them their own email
+    if (req.session.userId === user.id) {
+      return user.email;
+    }
+    //current user wants to see someone else email
+    return "";
+  }
+
   @Query(() => [User])
   users(): Promise<User[]> {
     return User.find();

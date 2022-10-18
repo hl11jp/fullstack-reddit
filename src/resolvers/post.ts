@@ -59,8 +59,8 @@ export class PostResolver {
       'id', u.id,
       'username', u.username,
       'email', u.email,
-      'createdAt', u.createdAt,
-      'updatedAt', u.updatedAt
+      'createdAt', u."createdAt",
+      'updatedAt', u."updatedAt"
       ) creator
     from post p
     inner join public.user u on u.id = p."creatorId"
