@@ -31,9 +31,9 @@ class PostInput {
 @ObjectType()
 class PaginatedPosts {
   @Field(() => [Post])
-  posts: Post[]
+  posts: Post[];
   @Field()
-  hasMore: boolean
+  hasMore: boolean;
 }
 
 //need to past `Post` into the @Resolver when use @FieldResolver
@@ -45,18 +45,48 @@ export class PostResolver {
     @Arg("cursor", () => String, { nullable: true }) cursor: string | null
   ): Promise<PaginatedPosts> {
     const realLimit = Math.min(50, limit);
-    // await sleep(10);
-    let pb = getConnection()
-      .getRepository(Post)
-      .createQueryBuilder("p")
-      .orderBy('"createdAt"', "DESC")
-      .take(realLimit + 1)
+
+    const replacements: any[] = [realLimit + 1];
+
     if (cursor) {
-      //cursor is a position and based on that position how many post we want to see using the `limit` variable
-      pb.where('"createdAt" < :cursor', {cursor: new Date(parseInt(cursor))})
+      replacements.push(new Date(parseInt(cursor)));
     }
-    const posts = await pb.getMany();
-    return {posts: posts.slice(0, realLimit), hasMore: posts.length === realLimit + 1};
+
+    const posts = await getConnection().query(
+      `
+    select p.*,
+    json_build_object(
+      'id', u.id,
+      'username', u.username,
+      'email', u.email,
+      'createdAt', u.createdAt,
+      'updatedAt', u.updatedAt
+      ) creator
+    from post p
+    inner join public.user u on u.id = p."creatorId"
+    ${cursor ? `where p."createdAt < $2"` : ""}
+    order by p."createdAt" DESC 
+    limit $1
+    `,
+      replacements
+    );
+    // await sleep(10);
+    // let pb = getConnection()
+    //   .getRepository(Post)
+    //   .createQueryBuilder("p")
+    //   .innerJoinAndSelect("p.creator", "u", 'u.id = p."creatorId"')
+    //   .orderBy('p."createdAt"', "DESC")
+    //   .take(realLimit + 1);
+    // if (cursor) {
+    //   //cursor is a position and based on that position how many post we want to see using the `limit` variable
+    //   pb.where('p."createdAt" < :cursor', { cursor: new Date(parseInt(cursor)) });
+    // }
+    // const posts = await pb.getMany();
+    console.log(posts);
+    return {
+      posts: posts.slice(0, realLimit),
+      hasMore: posts.length === realLimit + 1,
+    };
   }
 
   @Query(() => Post, { nullable: true })
@@ -99,9 +129,7 @@ export class PostResolver {
   }
 
   @FieldResolver(() => String)
-  textSnippet(
-    @Root() root: Post
-  ) {
+  textSnippet(@Root() root: Post) {
     return root.text.slice(0, 50);
   }
 }
