@@ -43,11 +43,16 @@ export class PostResolver {
   @Query(() => PaginatedPosts)
   async posts(
     @Arg("limit", () => Int) limit: number,
-    @Arg("cursor", () => String, { nullable: true }) cursor: string | null
+    @Arg("cursor", () => String, { nullable: true }) cursor: string | null,
+    @Ctx() { req }: MyConText
   ): Promise<PaginatedPosts> {
     const realLimit = Math.min(50, limit);
 
     const replacements: any[] = [realLimit + 1];
+
+    if (req.session.userId) {
+      replacements.push(req.session.userId)
+    }
 
     if (cursor) {
       replacements.push(new Date(parseInt(cursor)));
@@ -62,10 +67,15 @@ export class PostResolver {
       'email', u.email,
       'createdAt', u."createdAt",
       'updatedAt', u."updatedAt"
-      ) creator
+      ) creator,
+      ${
+        req.session.userId
+          ? '(select value from updoot where "userId" = $2 and "postId" = p.id) "voteStatus"'
+          : 'null as "voteStatus"'
+      }
     from post p
     inner join public.user u on u.id = p."creatorId"
-    ${cursor ? `where p."createdAt" < $2` : ""}
+    ${cursor ? `where p."createdAt" < ${req.session.userId ? '$3' : '$2'}` : ""}
     order by p."createdAt" DESC 
     limit $1
     `,
@@ -83,7 +93,7 @@ export class PostResolver {
     //   pb.where('p."createdAt" < :cursor', { cursor: new Date(parseInt(cursor)) });
     // }
     // const posts = await pb.getMany();
-    console.log(posts);
+    // console.log(posts);
     return {
       posts: posts.slice(0, realLimit),
       hasMore: posts.length === realLimit + 1,
@@ -158,11 +168,14 @@ export class PostResolver {
         `,
           [realValue, postId, userId]
         );
-        await tm.query(`
+        await tm.query(
+          `
           update post
           set points = points + $1
           where id = $2
-        `, [2 * realValue, postId])
+        `,
+          [2 * realValue, postId]
+        );
       });
     } else if (!updoot) {
       //the user never voted before
