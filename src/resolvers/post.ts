@@ -130,9 +130,12 @@ export class PostResolver {
   }
 
   @Mutation(() => Boolean, { nullable: true })
-  async deletePost(@Arg("identifier") id: number): Promise<Boolean> {
+  @UseMiddleware(isAuth)
+  async deletePost(@Arg("id", () => Int) id: number, @Ctx() {req}: MyConText): Promise<Boolean> {
+    console.log(id, req.session.userId)
     try {
-      await Post.delete(id);
+      await Updoot.delete({postId: id, userId: req.session.userId})
+      await Post.delete({id, creatorId: req.session.userId});
     } catch {
       return false;
     }
