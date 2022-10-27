@@ -161,6 +161,13 @@ export class PostResolver {
     return await userLoader.load(post.creatorId);
   }
 
+  @FieldResolver(() => Int, {nullable: true})
+  async voteStatus(@Root() post: Post, @Ctx() {updootLoader, req}: MyConText) {
+    if (!req.session.userId) return null;
+    const updoot = await updootLoader.load({postId: post.id, userId: req.session.userId});
+    return updoot ? updoot.value : null;
+  }
+
   @Mutation(() => Boolean)
   @UseMiddleware(isAuth)
   async vote(
