@@ -7,27 +7,27 @@ import { HelloResolver } from "./resolvers/hello";
 import { PostResolver } from "./resolvers/post";
 import { UserResolver } from "./resolvers/user";
 import Redis from "ioredis";
-import {createConnection} from "typeorm";
+import { createConnection } from "typeorm";
 import { Post } from "./entities/Post";
 import { User } from "./entities/User";
 import path from "path";
 import { Updoot } from "./entities/Updoot";
+import { createUserLoader } from "./utils/createUserLoader";
 
 //rerun
 const main = async () => {
   const conn = await createConnection({
-    type: 'postgres',
-    'database': 'lireddit2',
-    username: 'postgres',
-    password: 'postgres',
+    type: "postgres",
+    database: "lireddit2",
+    username: "postgres",
+    password: "postgres",
     logging: true,
     synchronize: true, //auto create table so don't need to run migration,
-    migrations: [path.join(__dirname, './migrations/*')],
-    entities: [Post, User, Updoot]
-  })
+    migrations: [path.join(__dirname, "./migrations/*")],
+    entities: [Post, User, Updoot],
+  });
 
   await conn.runMigrations();
-
 
   const app = express();
   const session = require("express-session");
@@ -35,7 +35,7 @@ const main = async () => {
   // const { createClient } = require("redis");
   let redisClient = new Redis();
   // redisClient.connect().catch(console.error);
-  app.set('trust proxy', true);
+  app.set("trust proxy", true);
   app.use(
     session({
       name: COOKIE_NAME,
@@ -48,7 +48,7 @@ const main = async () => {
         sameSite: "none", // csrf
         // secure: __prod__, //cookie only works in https
         secure: true,
-        expires: 60 * 1000
+        expires: 60 * 1000,
       },
     })
   );
@@ -66,12 +66,19 @@ const main = async () => {
     context: ({ req, res }) => ({
       req,
       res,
-      redisClient
+      redisClient,
+      userLoader: createUserLoader(),
     }),
   });
 
   await apolloServer.start();
-  apolloServer.applyMiddleware({ app, cors: {credentials: true, origin: ["https://studio.apollographql.com", "http://localhost:3001"]} });
+  apolloServer.applyMiddleware({
+    app,
+    cors: {
+      credentials: true,
+      origin: ["https://studio.apollographql.com", "http://localhost:3001"],
+    },
+  });
 
   app.listen(3000, () => {
     console.log("listening on port 3000...");

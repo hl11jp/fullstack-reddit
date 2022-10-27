@@ -17,6 +17,7 @@ import { MyConText } from "@/types";
 import { isAuth } from "../middleware/isAuth";
 import { getConnection} from "typeorm";
 import { Updoot } from "../entities/Updoot";
+import { User } from "../entities/User";
 
 // const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 // await sleep(5);
@@ -61,20 +62,12 @@ export class PostResolver {
     const posts = await getConnection().query(
       `
     select p.*,
-    json_build_object(
-      'id', u.id,
-      'username', u.username,
-      'email', u.email,
-      'createdAt', u."createdAt",
-      'updatedAt', u."updatedAt"
-      ) creator,
       ${
         req.session.userId
           ? '(select value from updoot where "userId" = $2 and "postId" = p.id) "voteStatus"'
           : 'null as "voteStatus"'
       }
     from post p
-    inner join public.user u on u.id = p."creatorId"
     ${cursor ? `where p."createdAt" < ${req.session.userId ? "$3" : "$2"}` : ""}
     order by p."createdAt" DESC 
     limit $1
@@ -102,7 +95,7 @@ export class PostResolver {
 
   @Query(() => Post, { nullable: true })
   post(@Arg("id", () => Int) id: number): Promise<Post | null> {
-    return Post.findOne({ where: { id }, relations: ["creator"] });
+    return Post.findOne({where: {id}});
   }
 
   @Mutation(() => Post)
@@ -160,6 +153,12 @@ export class PostResolver {
   @FieldResolver(() => String)
   textSnippet(@Root() root: Post) {
     return root.text.slice(0, 50);
+  }
+
+  @FieldResolver(() => User)
+  async creator(@Root() post: Post, @Ctx() {userLoader}: MyConText) {
+    // return User.findOne({where: {id: post.creatorId}}) this is bad because it has to query a bunch of User
+    return await userLoader.load(post.creatorId);
   }
 
   @Mutation(() => Boolean)
