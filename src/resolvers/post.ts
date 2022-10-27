@@ -15,7 +15,7 @@ import {
 } from "type-graphql";
 import { MyConText } from "@/types";
 import { isAuth } from "../middleware/isAuth";
-import { getConnection } from "typeorm";
+import { getConnection} from "typeorm";
 import { Updoot } from "../entities/Updoot";
 
 // const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -51,7 +51,7 @@ export class PostResolver {
     const replacements: any[] = [realLimit + 1];
 
     if (req.session.userId) {
-      replacements.push(req.session.userId)
+      replacements.push(req.session.userId);
     }
 
     if (cursor) {
@@ -75,7 +75,7 @@ export class PostResolver {
       }
     from post p
     inner join public.user u on u.id = p."creatorId"
-    ${cursor ? `where p."createdAt" < ${req.session.userId ? '$3' : '$2'}` : ""}
+    ${cursor ? `where p."createdAt" < ${req.session.userId ? "$3" : "$2"}` : ""}
     order by p."createdAt" DESC 
     limit $1
     `,
@@ -102,7 +102,7 @@ export class PostResolver {
 
   @Query(() => Post, { nullable: true })
   post(@Arg("id", () => Int) id: number): Promise<Post | null> {
-    return Post.findOne({where: {id}, relations: ['creator']});
+    return Post.findOne({ where: { id }, relations: ["creator"] });
   }
 
   @Mutation(() => Post)
@@ -115,27 +115,39 @@ export class PostResolver {
   }
 
   @Mutation(() => Post, { nullable: true })
+  @UseMiddleware(isAuth)
   async updatePost(
-    @Arg("identifier") id: number,
-    @Arg("title") title: string
+    @Arg("id", () => Int) id: number,
+    @Arg("title") title: string,
+    @Arg("text") text: string,
+    @Ctx() { req }: MyConText
   ): Promise<Post | null> {
-    const post = await Post.findOneBy({ id });
-    if (!post) {
-      return null;
-    }
-    if (typeof title !== "undefined") {
-      await Post.update({ id }, { title });
-    }
-    return post;
+    const post = await getConnection()
+      .createQueryBuilder()
+      .update(Post)
+      .set({ title, text })
+      .where('id = :id and "creatorId" = :creatorId', {
+        id, 
+        creatorId: req.session.userId,
+      })
+      .returning("*")
+      .execute();
+
+      if (post.raw.length == 0) throw new Error("not authenticated");
+
+    return post.raw[0];
   }
 
   @Mutation(() => Boolean, { nullable: true })
   @UseMiddleware(isAuth)
-  async deletePost(@Arg("id", () => Int) id: number, @Ctx() {req}: MyConText): Promise<Boolean> {
+  async deletePost(
+    @Arg("id", () => Int) id: number,
+    @Ctx() { req }: MyConText
+  ): Promise<Boolean> {
     try {
       //normal way
-      await Updoot.delete({postId: id, userId: req.session.userId})
-      await Post.delete({id, creatorId: req.session.userId});
+      await Updoot.delete({ postId: id, userId: req.session.userId });
+      await Post.delete({ id, creatorId: req.session.userId });
 
       //cascade way -- also some code on Updoot entity
       // await Post.delete({id, creatorId: req.session.userId});
