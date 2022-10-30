@@ -1,4 +1,6 @@
 import "reflect-metadata";
+// import "dotenv-safe/config";
+require('dotenv').config();
 import { COOKIE_NAME, __prod__ } from "./constants";
 import express from "express";
 import { ApolloServer } from "apollo-server-express";
@@ -18,11 +20,12 @@ import { createUserLoader } from "./utils/createUserLoader";
 const main = async () => {
   const conn = await createConnection({
     type: "postgres",
-    database: "lireddit2",
-    username: "postgres",
-    password: "postgres",
+    // database: "lireddit2",
+    // username: "postgres",
+    // password: "postgres",
+    url: process.env.DATABASE_URL,
     logging: true,
-    synchronize: true, //auto create table so don't need to run migration,
+    // synchronize: true, //auto create table so don't need to run migration,
     migrations: [path.join(__dirname, "./migrations/*")],
     entities: [Post, User, Updoot],
   });
@@ -33,14 +36,14 @@ const main = async () => {
   const session = require("express-session");
   let RedisStore = require("connect-redis")(session);
   // const { createClient } = require("redis");
-  let redisClient = new Redis();
+  let redisClient = new Redis(process.env.REDIS_URL);
   // redisClient.connect().catch(console.error);
   app.set("trust proxy", true);
   app.use(
     session({
       name: COOKIE_NAME,
       store: new RedisStore({ client: redisClient as any, disableTouch: true }),
-      secret: "keyboard",
+      secret: process.env.SESSION_SECRET,
       saveUninitialized: false,
       resave: true,
       cookie: {
@@ -76,12 +79,12 @@ const main = async () => {
     app,
     cors: {
       credentials: true,
-      origin: ["https://studio.apollographql.com", "http://localhost:3001"],
+      origin: process.env.CORS_ORIGIN
     },
   });
 
-  app.listen(3000, () => {
-    console.log("listening on port 3000...");
+  app.listen(parseInt(process.env.PORT), () => {
+    console.log("listening on port 4000...");
   });
   // const post = orm.em.create(Post, {title: 'omg', createdAt: new Date(), updatedAt: new Date()});
   // const post = orm.em.create(Post, {title: 'bro'}); //this will auto create Date
